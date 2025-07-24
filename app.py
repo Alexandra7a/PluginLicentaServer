@@ -3,7 +3,7 @@ import traceback
 from time import process_time_ns
 
 from flask import Flask
-import re
+import r
 
 from transformers import AutoTokenizer, TFAutoModelForSequenceClassification
 from flask import Flask, request, jsonify
