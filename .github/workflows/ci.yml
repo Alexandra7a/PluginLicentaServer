@@ -31,22 +31,23 @@ jobs:
       # QUALITY GATE: Fails on style violations
 
     # BUILD STAGE
-    - name: Build Docker image
-      run: docker build -t vulnerability_detection .
-      # QUALITY GATE: Fails on Docker build errors
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+      # QUALITY GATE: Fails on installation errors
 
     # TEST STAGE
-    - name: Install pytest
-      run: pip install pytest
-
     - name: Run tests
       run: pytest
       # QUALITY GATE: Fails on test failures
 
-    # DEPLOYMENT STAGE (if applicable)
-    - name: Login to Docker Registry
-      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+    # DOCKER BUILD STAGE
+    - name: Build Docker image
+      run: docker build -t vulnerability_detection_app .
+      # QUALITY GATE: Fails on Docker build errors
 
+    # DEPLOYMENT STAGE (if applicable)
     - name: Push Docker image
-      run: docker push vulnerability_detection
-      # Pushes the built Docker image to the registry
+      run: |
+        echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+        docker push vulnerability_detection_app
+      # Ensure secrets are used for secure login
