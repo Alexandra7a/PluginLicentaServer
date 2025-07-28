@@ -23,15 +23,30 @@ jobs:
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
 
     # LINTING STAGE
-    - name: Install Flake8
+    - name: Install flake8
       run: pip install flake8
+
     - name: Run Linter
       run: flake8 .
-    
+      # QUALITY GATE: Fails on style violations
+
     # BUILD STAGE
-    - name: Install dependencies
-      run: pip install -r requirements.txt
+    - name: Build Docker image
+      run: docker build -t vulnerability_detection .
+      # QUALITY GATE: Fails on Docker build errors
 
     # TEST STAGE
+    - name: Install pytest
+      run: pip install pytest
+
     - name: Run tests
-      run: pytest --maxfail=1 --disable-warnings -q
+      run: pytest
+      # QUALITY GATE: Fails on test failures
+
+    # DEPLOYMENT STAGE (if applicable)
+    - name: Login to Docker Registry
+      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+    - name: Push Docker image
+      run: docker push vulnerability_detection
+      # Pushes the built Docker image to the registry
