@@ -10,42 +10,57 @@ jobs:
       uses: actions/checkout@v4
 
     # ENVIRONMENT SETUP
-    - name: Setup Python
-      uses: actions/setup-python@v4
+    - name: Setup Java
+      uses: actions/setup-java@v3
       with:
-        python-version: '3.11'
+        java-version: '17'
+        distribution: 'temurin'
 
     # DEPENDENCY CACHING
-    - name: Cache pip dependencies
+    - name: Cache Gradle dependencies
       uses: actions/cache@v3
       with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}-${{ hashFiles('**/gradle-wrapper.properties') }}
 
     # LINTING STAGE
-    - name: Install Flake8
-      run: pip install flake8
-
+    - name: Configure Checkstyle
+      run: |
+        mkdir -p config/checkstyle
+        curl -sL https://raw.githubusercontent.com/checkstyle/checkstyle/master/src/main/resources/google_checks.xml > config/checkstyle/checkstyle.xml
+    
     - name: Run Linter
-      run: flake8 .
-      # QUALITY GATE: Fails on style violations
+      run: ./gradlew checkstyleMain
 
     # BUILD STAGE
-    - name: Build Docker image
-      run: docker build -t vulnerability_detection_app .
-      # QUALITY GATE: Fails on Docker build errors
+    - name: Build project
+      run: ./gradlew clean build
 
     # TEST STAGE
-    - name: Install Testing Dependencies
-      run: pip install pytest
-
     - name: Run tests
-      run: pytest
-      # QUALITY GATE: Fails on test failures
+      run: ./gradlew test
 
-    # DEPLOYMENT STAGE (if applicable)
-    - name: Deploy to Docker Registry
-      run: |
-        echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-        docker push vulnerability_detection_app
-      # Ensure to use secrets for Docker credentials
+    # OPTIONAL: Check code coverage (if applicable)
+    # - name: Check code coverage
+    #   run: ./gradlew jacocoTestReport
+
+    # ADDITIONAL STEPS BASED ON SECRETS
+    - name: Deploy to Cloud Provider
+      if: secrets.AZURE_SECRET_KEY
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: 'my-app'
+        slot-name: 'production'
+        publish-profile: ${{ secrets.AZURE_SECRET_KEY }}
+        package: '.'
+      env:
+        NODE_ENV: 'production'
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        REDIS_URL: ${{ secrets.REDIS_URL }}
+```
+
+### Conclusion
+
+Your CI pipeline is already quite solid, and with these enhancements, you can improve its robustness and efficiency. Make sure to test the pipeline after making changes to ensure everything works as expected.
