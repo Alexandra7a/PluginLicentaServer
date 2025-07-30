@@ -6,61 +6,45 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    # ENVIRONMENT SETUP
-    - name: Setup Java
-      uses: actions/setup-java@v3
-      with:
-        java-version: '17'
-        distribution: 'temurin'
+      # ENVIRONMENT SETUP
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
-    # DEPENDENCY CACHING
-    - name: Cache Gradle dependencies
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}-${{ hashFiles('**/gradle-wrapper.properties') }}
+      # DEPENDENCY CACHING
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
 
-    # LINTING STAGE
-    - name: Configure Checkstyle
-      run: |
-        mkdir -p config/checkstyle
-        curl -sL https://raw.githubusercontent.com/checkstyle/checkstyle/master/src/main/resources/google_checks.xml > config/checkstyle/checkstyle.xml
-    
-    - name: Run Linter
-      run: ./gradlew checkstyleMain
+      # LINTING STAGE
+      - name: Install Flake8
+        run: pip install flake8
 
-    # BUILD STAGE
-    - name: Build project
-      run: ./gradlew clean build
+      - name: Run Linter
+        run: flake8 .
+        # QUALITY GATE: Fails on style violations
 
-    # TEST STAGE
-    - name: Run tests
-      run: ./gradlew test
+      # BUILD STAGE
+      - name: Build Docker image
+        run: docker build -t vulnerability_detection .
 
-    # OPTIONAL: Check code coverage (if applicable)
-    # - name: Check code coverage
-    #   run: ./gradlew jacocoTestReport
+      # TEST STAGE
+      - name: Run tests
+        run: |
+          pip install pytest
+          pytest
+        # QUALITY GATE: Fails on test failures
 
-    # ADDITIONAL STEPS BASED ON SECRETS
-    - name: Deploy to Cloud Provider
-      if: secrets.AZURE_SECRET_KEY
-      uses: azure/webapps-deploy@v2
-      with:
-        app-name: 'my-app'
-        slot-name: 'production'
-        publish-profile: ${{ secrets.AZURE_SECRET_KEY }}
-        package: '.'
-      env:
-        NODE_ENV: 'production'
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        REDIS_URL: ${{ secrets.REDIS_URL }}
-```
-
-### Conclusion
-
-Your CI pipeline is already quite solid, and with these enhancements, you can improve its robustness and efficiency. Make sure to test the pipeline after making changes to ensure everything works as expected.
+      # DEPLOYMENT STAGE
+      - name: Deploy to Docker Hub
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+          docker tag vulnerability_detection ${{ secrets.DOCKER_HUB_USERNAME }}/vulnerability_detection:latest
+          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/vulnerability_detection:latest
